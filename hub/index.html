@@ -39,6 +39,10 @@
   button { padding: 10px 20px; background: var(--gold); color: #000; font-family: inherit; font-size: 0.85rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; letter-spacing: 0.05em; }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   .empty-state { text-align: center; color: #444; padding: 40px 0; font-size: 0.8rem; letter-spacing: 0.05em; }
+  .nav-bar { display: flex; gap: 12px; padding: 12px 32px; border-bottom: 1px solid var(--border); background: #0a0a0a; }
+  .nav-link { font-size: 0.7rem; letter-spacing: 0.1em; color: #666; text-decoration: none; padding: 4px 10px; border: 1px solid transparent; border-radius: 3px; transition: all 0.2s; }
+  .nav-link:hover { color: var(--gold); border-color: var(--border); }
+  .nav-link.active { color: var(--gold); border-color: var(--gold); }
 </style>
 </head>
 <body>
@@ -47,11 +51,17 @@
     <h1>SOVEREIGN</h1>
     <div class="sub" id="business_name">Family Dashboard</div>
   </div>
-  <div class="status-bar">
+  <a class="nav-link" href="analytics.html" style="font-size:0.7rem;color:#555;text-decoration:none;margin-right:16px;letter-spacing:0.1em;">ANALYTICS</a><div class="status-bar">
     <div class="dot-live" id="fleet_dot"></div>
     <span id="fleet_status">checking...</span>
   </div>
 </header>
+<nav class="nav-bar">
+  <a class="nav-link active" href="index.html">AGENTS</a>
+  <a class="nav-link" href="analytics.html">ANALYTICS</a>
+  <a class="nav-link" href="http://localhost:7950" target="_blank">3D VAULT</a>
+  <a class="nav-link" href="http://localhost:7007/api/graph" target="_blank">BRAIN GRAPH</a>
+</nav>
 <main>
   <div class="agents-grid" id="agents_grid"></div>
   <div class="chat-area">

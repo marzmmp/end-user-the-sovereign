@@ -54,6 +54,8 @@ class SetupHandler(http.server.BaseHTTPRequestHandler):
             self._write_env(body)
             # Launch agents in background
             threading.Thread(target=self._launch, daemon=True).start()
+            if body.get('tts_provider') == 'kokoro':
+                threading.Thread(target=self._download_kokoro, daemon=True).start()
             self._json({'status': 'ok', 'message': 'Sovereign is launching...'})
 
         elif self.path == '/api/status':
@@ -83,6 +85,20 @@ class SetupHandler(http.server.BaseHTTPRequestHandler):
         with open(env_path, 'w') as f:
             f.write('\n'.join(lines))
 
+
+def _download_kokoro(self):
+    """Download Kokoro TTS model in background if selected."""
+    kokoro_dir = os.path.join(os.path.dirname(__file__), '..', 'kokoro')
+    os.makedirs(kokoro_dir, exist_ok=True)
+    model_path = os.path.join(kokoro_dir, 'kokoro-v1.0.onnx')
+    if os.path.exists(model_path):
+        return  # already downloaded
+    try:
+        import urllib.request as ur
+        url = 'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v1.0.onnx'
+        ur.urlretrieve(url, model_path)
+    except Exception as e:
+        print(f'[kokoro] download failed: {e}')
     def _launch(self):
         root = os.path.join(os.path.dirname(__file__), '..')
         subprocess.run(['docker-compose', 'up', '-d'], cwd=root, capture_output=True)
