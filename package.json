@@ -1,0 +1,19 @@
+{
+  "name": "end-user-the-sovereign",
+  "version": "1.0.0",
+  "description": "Sovereign-in-a-Box: 8-agent AI family for any business",
+  "scripts": {
+    "setup": "cd setup && python3 setup_server.py",
+    "health": "bash scripts/health_check.sh",
+    "build": "bash scripts/build.sh",
+    "ingest": "python3 ingest/sovereign_ingest.py"
+  },
+  "keywords": [
+    "sovereign",
+    "ai",
+    "agents",
+    "truesite"
+  ],
+  "author": "TrueSite Technologies",
+  "license": "UNLICENSED"
+}

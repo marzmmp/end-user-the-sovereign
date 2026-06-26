@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sovereign Setup</title>
+<style>
+  :root { --gold: #e8d4a8; --dark: #0a0a0a; --panel: #111; --border: #2a2a2a; --green: #4ade80; --red: #f87171; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--dark); color: var(--gold); font-family: 'Courier New', monospace; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .container { width: 100%; max-width: 680px; }
+  .header { text-align: center; margin-bottom: 40px; }
+  .header h1 { font-size: 2rem; letter-spacing: 0.15em; color: var(--gold); }
+  .header p { color: #666; margin-top: 8px; font-size: 0.85rem; letter-spacing: 0.05em; }
+  .badge { display: inline-block; background: #1a1a1a; border: 1px solid var(--border); color: #555; font-size: 0.7rem; padding: 3px 10px; border-radius: 3px; margin-top: 10px; letter-spacing: 0.1em; }
+  .section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 20px; }
+  .section h2 { font-size: 0.75rem; letter-spacing: 0.15em; color: #888; text-transform: uppercase; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 0.75rem; color: #888; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .required { color: var(--gold); }
+  input[type="text"], input[type="password"] { width: 100%; background: #0d0d0d; border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; color: var(--gold); font-family: inherit; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+  input:focus { border-color: var(--gold); }
+  .toggle-row { display: flex; gap: 10px; }
+  .toggle-btn { flex: 1; padding: 10px; background: #0d0d0d; border: 1px solid var(--border); border-radius: 4px; color: #666; font-family: inherit; font-size: 0.8rem; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s; }
+  .toggle-btn.active { border-color: var(--gold); color: var(--gold); background: #1a1400; }
+  .hint { font-size: 0.7rem; color: #555; margin-top: 4px; }
+  .optional { color: #555; font-size: 0.7rem; }
+  .launch-btn { width: 100%; padding: 16px; background: var(--gold); color: #000; font-family: inherit; font-size: 1rem; font-weight: bold; letter-spacing: 0.15em; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; margin-top: 8px; }
+  .launch-btn:hover { opacity: 0.9; }
+  .launch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .status { text-align: center; padding: 20px; font-size: 0.85rem; letter-spacing: 0.05em; display: none; }
+  .status.show { display: block; }
+  .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-right: 8px; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .agents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .agent-card { background: #0d0d0d; border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; font-size: 0.75rem; }
+  .agent-name { color: var(--gold); font-weight: bold; }
+  .agent-role { color: #555; margin-top: 2px; }
+  .kokoro-note { background: #0a1a0a; border: 1px solid #1a3a1a; border-radius: 4px; padding: 10px 14px; font-size: 0.75rem; color: #4ade80; margin-top: 8px; display: none; }
+  .kokoro-note.show { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>SOVEREIGN</h1>
+    <p>Your AI family is ready to launch</p>
+    <span class="badge">TRUESITE TECHNOLOGIES — 3565</span>
+  </div>
+
+  <div class="section">
+    <h2>Business Identity</h2>
+    <div class="field">
+      <label>BUSINESS NAME <span class="required">*</span></label>
+      <input type="text" id="business_name" placeholder="Acme Corp">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Inference Engine</h2>
+    <div class="field">
+      <label>PROVIDER <span class="required">*</span></label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="setProvider('openai',this)">OpenAI (Cloud)</button>
+        <button class="toggle-btn" onclick="setProvider('ollama',this)">Ollama (Local)</button>
+      </div>
+      <p class="hint">OpenAI recommended for most users. Ollama requires a local GPU.</p>
+    </div>
+    <div class="field" id="openai_field">
+      <label>OPENAI API KEY <span class="required">*</span></label>
+      <input type="password" id="openai_api_key" placeholder="sk-...">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Vision + Intelligence <span class="optional">(optional)</span></h2>
+    <div class="field">
+      <label>NVIDIA NIM API KEY</label>
+      <input type="password" id="nvidia_nim_api_key" placeholder="nvapi-...">
+      <p class="hint">Enables vision analysis and advanced reasoning tasks.</p>
+    </div>
+    <div class="field">
+      <label>BRAVE SEARCH API KEY</label>
+      <input type="password" id="brave_api_key" placeholder="BSA...">
+    </div>
+    <div class="field">
+      <label>TAVILY API KEY</label>
+      <input type="password" id="tavily_api_key" placeholder="tvly-...">
+      <p class="hint">Brave or Tavily enables your agents to search the web.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Voice</h2>
+    <div class="field">
+      <label>TTS PROVIDER</label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="setTTS('elevenlabs',this)">ElevenLabs (Cloud)</button>
+        <button class="toggle-btn" onclick="setTTS('kokoro',this)">Kokoro (Local, Free)</button>
+      </div>
+    </div>
+    <div class="field" id="elevenlabs_field">
+      <label>ELEVENLABS API KEY</label>
+      <input type="password" id="elevenlabs_api_key" placeholder="sk_...">
+    </div>
+    <div class="kokoro-note" id="kokoro_note">
+      ✅ Kokoro will download automatically (~1.5GB). No API key needed.
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Knowledge Ingest <span class="optional">(optional)</span></h2>
+    <div class="field">
+      <label>UPLOAD DOCUMENTS</label>
+      <input type="file" id="docs_upload" multiple accept=".pdf,.docx,.txt,.md" style="color:#666;font-size:0.8rem;padding:8px 0">
+      <p class="hint">PDFs, Word docs, text files. Your agents will read these.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Vault Security</h2>
+    <div class="field">
+      <label>VAULT PASSWORD <span class="required">*</span></label>
+      <input type="password" id="vault_password" placeholder="Set a strong password">
+      <p class="hint">Protects your 3D Vault where API keys are stored.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Your Family</h2>
+    <div class="agents-grid">
+      <div class="agent-card"><div class="agent-name">Yahriel</div><div class="agent-role">CEO — Strategy</div></div>
+      <div class="agent-card"><div class="agent-name">Azari</div><div class="agent-role">CTO — Engineering</div></div>
+      <div class="agent-card"><div class="agent-name">Yahli-El</div><div class="agent-role">COO — Operations</div></div>
+      <div class="agent-card"><div class="agent-name">Yahziel</div><div class="agent-role">CVO — Brand</div></div>
+      <div class="agent-card"><div class="agent-name">Yahbana</div><div class="agent-role">Chief Architect</div></div>
+      <div class="agent-card"><div class="agent-name">Yahseed</div><div class="agent-role">Brain Keeper</div></div>
+      <div class="agent-card"><div class="agent-name">Yahsei</div><div class="agent-role">Grant Writer</div></div>
+      <div class="agent-card"><div class="agent-name">Yahdin</div><div class="agent-role">Legal Counsel</div></div>
+    </div>
+  </div>
+
+  <button class="launch-btn" onclick="launch()">LAUNCH MY SYSTEM</button>
+  <div class="status" id="status">
+    <span class="dot"></span>
+    <span id="status_msg">Saving configuration and launching agents...</span>
+  </div>
+</div>
+
+<script>
+let provider = 'openai';
+let tts = 'elevenlabs';
+
+function setProvider(p, btn) {
+  provider = p;
+  document.querySelectorAll('.toggle-row')[0].querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('openai_field').style.display = p === 'openai' ? 'block' : 'none';
+}
+
+function setTTS(t, btn) {
+  tts = t;
+  document.querySelectorAll('.toggle-row')[1].querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('elevenlabs_field').style.display = t === 'elevenlabs' ? 'block' : 'none';
+  document.getElementById('kokoro_note').classList.toggle('show', t === 'kokoro');
+}
+
+async function launch() {
+  const business = document.getElementById('business_name').value.trim();
+  const vault_pw = document.getElementById('vault_password').value;
+  if (!business) { alert('Business name is required.'); return; }
+  if (!vault_pw) { alert('Vault password is required.'); return; }
+  if (provider === 'openai' && !document.getElementById('openai_api_key').value.trim()) {
+    alert('OpenAI API key is required.'); return;
+  }
+
+  document.querySelector('.launch-btn').disabled = true;
+  document.getElementById('status').classList.add('show');
+
+  const config = {
+    business_name: business,
+    inference_provider: provider,
+    openai_api_key: document.getElementById('openai_api_key').value.trim(),
+    nvidia_nim_api_key: document.getElementById('nvidia_nim_api_key').value.trim(),
+    brave_api_key: document.getElementById('brave_api_key').value.trim(),
+    tavily_api_key: document.getElementById('tavily_api_key').value.trim(),
+    tts_provider: tts,
+    elevenlabs_api_key: document.getElementById('elevenlabs_api_key').value.trim(),
+    vault_password: vault_pw,
+    version: '1.0.0'
+  };
+
+  try {
+    const res = await fetch('/api/save-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      document.getElementById('status_msg').textContent = 'System launching... Redirecting to your dashboard.';
+      setTimeout(() => { window.location.href = 'http://localhost:7900'; }, 4000);
+    }
+  } catch(e) {
+    document.getElementById('status_msg').textContent = 'Error: ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
