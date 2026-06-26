@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sovereign Analytics</title>
+<style>
+  :root { --gold: #e8d4a8; --dark: #080808; --panel: #0f0f0f; --border: #1e1e1e; --green: #4ade80; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--dark); color: var(--gold); font-family: 'Courier New', monospace; min-height: 100vh; }
+  header { border-bottom: 1px solid var(--border); padding: 18px 32px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 1rem; letter-spacing: 0.2em; }
+  .nav-links { display: flex; gap: 20px; font-size: 0.75rem; color: #555; }
+  .nav-links a { color: #555; text-decoration: none; letter-spacing: 0.08em; }
+  .nav-links a:hover, .nav-links a.active { color: var(--gold); }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px; }
+
+  /* Stat tiles */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .stat-label { font-size: 0.65rem; color: #555; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+  .stat-value { font-size: 1.8rem; letter-spacing: 0.05em; }
+  .stat-value.blank { color: #222; }
+  .stat-sub { font-size: 0.7rem; color: #444; margin-top: 4px; }
+
+  /* Yahriel AI panel */
+  .ai-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 32px; }
+  .ai-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .ai-avatar { width: 40px; height: 40px; border-radius: 50%; background: #1a1400; border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; letter-spacing: 0.05em; flex-shrink: 0; }
+  .ai-name { font-size: 0.9rem; }
+  .ai-role { font-size: 0.7rem; color: #555; margin-top: 2px; letter-spacing: 0.05em; }
+  .ai-messages { min-height: 120px; max-height: 280px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .ai-msg { font-size: 0.85rem; line-height: 1.6; color: #bbb; padding: 10px 14px; background: #0a0a0a; border-radius: 6px; border-left: 2px solid var(--gold); }
+  .ai-input-row { display: flex; gap: 10px; }
+  .ai-input { flex: 1; background: #0a0a0a; border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; color: var(--gold); font-family: inherit; font-size: 0.85rem; outline: none; }
+  .ai-input:focus { border-color: var(--gold); }
+  .ask-btn { padding: 10px 20px; background: var(--gold); color: #000; font-family: inherit; font-size: 0.8rem; font-weight: bold; letter-spacing: 0.1em; border: none; border-radius: 4px; cursor: pointer; }
+  .ask-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Fleet status */
+  .fleet-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
+  .fleet-title { font-size: 0.7rem; color: #555; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
+  .fleet-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .fleet-row { background: #0a0a0a; border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
+  .fleet-name { font-size: 0.8rem; margin-bottom: 4px; }
+  .fleet-status { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; color: #555; }
+  .s-dot { width: 6px; height: 6px; border-radius: 50%; background: #2a2a2a; }
+  .s-dot.online { background: var(--green); }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .fleet-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>SOVEREIGN — ANALYTICS</h1>
+  <nav class="nav-links">
+    <a href="index.html">Hub</a>
+    <a href="analytics.html" class="active">Analytics</a>
+    <a href="../vault/index.html">Vault</a>
+  </nav>
+</header>
+<main>
+  <!-- Stat tiles — blank until system populated -->
+  <div class="stats-grid">
+    <div class="stat-tile">
+      <div class="stat-label">Total Conversations</div>
+      <div class="stat-value blank" id="stat_convos">—</div>
+      <div class="stat-sub">across all agents</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">Documents Ingested</div>
+      <div class="stat-value blank" id="stat_docs">—</div>
+      <div class="stat-sub">knowledge base size</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">Agents Online</div>
+      <div class="stat-value" id="stat_agents">—</div>
+      <div class="stat-sub">of 8 active</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">System Uptime</div>
+      <div class="stat-value blank" id="stat_uptime">—</div>
+      <div class="stat-sub">since last launch</div>
+    </div>
+  </div>
+
+  <!-- Yahriel AI panel -->
+  <div class="ai-panel">
+    <div class="ai-header">
+      <div class="ai-avatar">YHR</div>
+      <div>
+        <div class="ai-name">Yahriel</div>
+        <div class="ai-role">CEO — Strategic Intelligence</div>
+      </div>
+    </div>
+    <div class="ai-messages" id="ai_messages">
+      <div class="ai-msg">Sovereignty means owning your own intelligence. Ask me anything about your business, your team, or where we go from here.</div>
+    </div>
+    <div class="ai-input-row">
+      <input class="ai-input" type="text" id="ai_input" placeholder="Ask Yahriel anything..." onkeydown="if(event.key==='Enter')askYahriel()">
+      <button class="ask-btn" id="ask_btn" onclick="askYahriel()">ASK</button>
+    </div>
+  </div>
+
+  <!-- Fleet status -->
+  <div class="fleet-panel">
+    <div class="fleet-title">Family Fleet Status</div>
+    <div class="fleet-grid" id="fleet_grid"></div>
+  </div>
+</main>
+
+<script>
+const AGENTS = [
+  { name: "Yahriel", role: "CEO",    port: 7001 },
+  { name: "Azari",   role: "CTO",    port: 7002 },
+  { name: "Yahli-El",role: "COO",    port: 7003 },
+  { name: "Yahziel", role: "CVO",    port: 7004 },
+  { name: "Yahbana", role: "Arch",   port: 7005 },
+  { name: "Yahseed", role: "Brain",  port: 7006 },
+  { name: "Yahsei",  role: "Grants", port: 7007 },
+  { name: "Yahdin",  role: "Legal",  port: 7008 },
+];
+const TOKEN = "YAHUAH-3565";
+let aiHistory = [];
+
+async function checkAgent(a) {
+  try {
+    const r = await fetch(`http://localhost:${a.port}/health`, { signal: AbortSignal.timeout(3000) });
+    return r.ok;
+  } catch { return false; }
+}
+
+async function renderFleet() {
+  const grid = document.getElementById("fleet_grid");
+  grid.innerHTML = "";
+  let online = 0;
+  await Promise.all(AGENTS.map(async a => {
+    const up = await checkAgent(a);
+    if (up) online++;
+    const div = document.createElement("div");
+    div.className = "fleet-row";
+    div.innerHTML = `
+      <div class="fleet-name">${a.name}</div>
+      <div class="fleet-status">
+        <div class="s-dot ${up ? 'online' : ''}"></div>
+        ${up ? 'Online' : 'Offline'} · ${a.role}
+      </div>`;
+    grid.appendChild(div);
+  }));
+  document.getElementById("stat_agents").textContent = `${online}/8`;
+  document.getElementById("stat_agents").classList.toggle("blank", online === 0);
+}
+
+async function askYahriel() {
+  const input = document.getElementById("ai_input");
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = "";
+  document.getElementById("ask_btn").disabled = true;
+
+  const box = document.getElementById("ai_messages");
+  const userDiv = document.createElement("div");
+  userDiv.className = "ai-msg";
+  userDiv.style.borderLeftColor = "#333";
+  userDiv.style.color = "#666";
+  userDiv.textContent = msg;
+  box.appendChild(userDiv);
+  box.scrollTop = box.scrollHeight;
+  aiHistory.push({ role: "user", content: msg });
+
+  try {
+    const res = await fetch("http://localhost:7001/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` },
+      body: JSON.stringify({ message: msg, history: aiHistory.slice(-6), voice: true })
+    });
+    const data = await res.json();
+    const reply = data.reply || "(no reply)";
+    aiHistory.push({ role: "assistant", content: reply });
+
+    const replyDiv = document.createElement("div");
+    replyDiv.className = "ai-msg";
+    replyDiv.textContent = reply;
+    box.appendChild(replyDiv);
+    box.scrollTop = box.scrollHeight;
+  } catch(e) {
+    const errDiv = document.createElement("div");
+    errDiv.className = "ai-msg";
+    errDiv.style.color = "#f87171";
+    errDiv.textContent = "Yahriel is offline. Start sovereign first.";
+    box.appendChild(errDiv);
+  }
+  document.getElementById("ask_btn").disabled = false;
+  input.focus();
+}
+
+renderFleet();
+setInterval(renderFleet, 30000);
+</script>
+</body>
+</html>

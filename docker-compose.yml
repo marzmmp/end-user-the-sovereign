@@ -1,13 +1,14 @@
 version: '3.9'
+# Step 1: bash scripts/build.sh  (builds all 8 agent images)
+# Step 2: docker-compose up -d   (starts everything)
 
 services:
   setup:
-    build: ./setup
+    image: python:3.11-slim
+    working_dir: /app
+    command: python3 setup/setup_server.py
     ports: ["7890:7890"]
-    volumes:
-      - .:/app
-    environment:
-      - PORT=7890
+    volumes: [".:/app"]
     restart: unless-stopped
 
   hub:
@@ -15,79 +16,67 @@ services:
     ports: ["7900:80"]
     volumes:
       - ./hub:/usr/share/nginx/html:ro
+      - ./hub/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+  vault:
+    image: nginx:alpine
+    ports: ["7950:80"]
+    volumes:
+      - ./vault:/usr/share/nginx/html:ro
     restart: unless-stopped
 
   yahriel:
-    build:
-      context: ./agents/yahriel
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahriel
     ports: ["7001:7001"]
     env_file: .env
     environment: [PORT=7001]
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7001/health"]
-      interval: 30s
-      timeout: 5s
 
   azari:
-    build:
-      context: ./agents/azari
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-azari
     ports: ["7002:7002"]
     env_file: .env
     environment: [PORT=7002]
     restart: unless-stopped
 
   yahli-el:
-    build:
-      context: ./agents/yahli-el
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahli-el
     ports: ["7003:7003"]
     env_file: .env
     environment: [PORT=7003]
     restart: unless-stopped
 
   yahziel:
-    build:
-      context: ./agents/yahziel
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahziel
     ports: ["7004:7004"]
     env_file: .env
     environment: [PORT=7004]
     restart: unless-stopped
 
   yahbana:
-    build:
-      context: ./agents/yahbana
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahbana
     ports: ["7005:7005"]
     env_file: .env
     environment: [PORT=7005]
     restart: unless-stopped
 
   yahseed:
-    build:
-      context: ./agents/yahseed
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahseed
     ports: ["7006:7006"]
     env_file: .env
     environment: [PORT=7006]
     restart: unless-stopped
 
   yahsei:
-    build:
-      context: ./agents/yahsei
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahsei
     ports: ["7007:7007"]
     env_file: .env
     environment: [PORT=7007]
     restart: unless-stopped
 
   yahdin:
-    build:
-      context: ./agents/yahdin
-      dockerfile: ../../core/Dockerfile.agent
+    image: sovereign-yahdin
     ports: ["7008:7008"]
     env_file: .env
     environment: [PORT=7008]
