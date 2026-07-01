@@ -26,12 +26,20 @@ Plug in your API keys. Ingest your documents. Launch your sovereign AI team.
 | Yahsei   | Grant Writer     |
 | Yahdin   | Legal Counsel    |
 
+## Capabilities
+
+- **Inference:** choose OpenAI, NVIDIA NIM, or a local Ollama model — set on the Setup Page, switchable any time in `.env` (`INFERENCE_PROVIDER`).
+- **Web search:** Brave or Tavily tool-calling built into every agent.
+- **Voice replies:** toggle "🔊 Speak replies" in the Hub. Uses local Kokoro TTS (free, offline, auto-downloaded) or ElevenLabs (cloud, your key) — set via `TTS_PROVIDER`.
+- **3D Vault:** password-protected key storage.
+- **Document ingestion:** drop files in for any agent to reference.
+
 ## Requirements
 
-- Docker + Docker Compose
+- Docker + Docker Compose (the `docker compose` plugin or standalone `docker-compose` — both supported)
 - 16GB RAM minimum (32GB recommended)
 - 50GB disk space
-- Internet connection (for API keys)
+- Internet connection (for API keys, and once to download Kokoro if selected)
 
 ## Structure
 
@@ -41,11 +49,12 @@ end-user-the-sovereign/
 ├── sovereign.config.json ← Auto-filled by setup
 ├── .env.example          ← Reference
 ├── setup/                ← First-run onboarding UI
-├── hub/                  ← Family dashboard
-├── agents/               ← 8 agent services
-├── vault/                ← 3D password-protected key vault
-├── ingest/               ← Document ingestion CLI
-└── scripts/              ← Health, build, update utilities
+├── hub/                  ← Family dashboard (chat + voice toggle)
+├── agents/                ← 8 agent services
+├── kokoro/                ← Local TTS service (optional, free)
+├── vault/                 ← 3D password-protected key vault
+├── ingest/                ← Document ingestion CLI
+└── scripts/                ← Health, build, update utilities
 ```
 
 Built by TrueSite Technologies. 3565.

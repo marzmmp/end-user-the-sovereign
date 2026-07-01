@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sovereign Setup Server — port 7890 | 3565"""
-import http.server, json, os, hashlib, subprocess, threading, socketserver
+import http.server, json, os, hashlib, subprocess, threading, socketserver, shutil
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'sovereign.config.json')
 SETUP_HTML  = os.path.join(os.path.dirname(__file__), 'index.html')
@@ -23,7 +23,7 @@ class SetupHandler(http.server.BaseHTTPRequestHandler):
             try:
                 with open(CONFIG_PATH) as f:
                     self._json(json.load(f))
-            except:
+            except Exception:
                 self._json({})
         else:
             try:
@@ -52,10 +52,11 @@ class SetupHandler(http.server.BaseHTTPRequestHandler):
                 json.dump(body, f, indent=2)
             # Write .env for docker-compose
             self._write_env(body)
+            # Download Kokoro model FIRST if selected (agents need it present at boot)
+            if body.get('tts_provider') == 'kokoro':
+                self._download_kokoro()
             # Launch agents in background
             threading.Thread(target=self._launch, daemon=True).start()
-            if body.get('tts_provider') == 'kokoro':
-                threading.Thread(target=self._download_kokoro, daemon=True).start()
             self._json({'status': 'ok', 'message': 'Sovereign is launching...'})
 
         elif self.path == '/api/status':
@@ -63,7 +64,7 @@ class SetupHandler(http.server.BaseHTTPRequestHandler):
                 with open(CONFIG_PATH) as f:
                     cfg = json.load(f)
                 self._json({'setup_complete': cfg.get('setup_complete', False)})
-            except:
+            except Exception:
                 self._json({'setup_complete': False})
         else:
             self.send_response(404); self.end_headers()
@@ -74,34 +75,61 @@ class SetupHandler(http.server.BaseHTTPRequestHandler):
             f"BUSINESS_NAME={cfg.get('business_name','')}",
             f"INFERENCE_PROVIDER={cfg.get('inference_provider','openai')}",
             f"OPENAI_API_KEY={cfg.get('openai_api_key','')}",
+            f"OPENAI_MODEL={cfg.get('openai_model','gpt-4o-mini')}",
             f"NVIDIA_NIM_API_KEY={cfg.get('nvidia_nim_api_key','')}",
+            f"NVIDIA_NIM_MODEL={cfg.get('nvidia_nim_model','meta/llama-3.1-70b-instruct')}",
+            f"OLLAMA_HOST={cfg.get('ollama_host','http://host.docker.internal:11434')}",
+            f"OLLAMA_MODEL={cfg.get('ollama_model','llama3.1:8b')}",
             f"BRAVE_API_KEY={cfg.get('brave_api_key','')}",
             f"TAVILY_API_KEY={cfg.get('tavily_api_key','')}",
             f"TTS_PROVIDER={cfg.get('tts_provider','elevenlabs')}",
             f"ELEVENLABS_API_KEY={cfg.get('elevenlabs_api_key','')}",
+            f"KOKORO_HOST={cfg.get('kokoro_host','http://kokoro:7960')}",
             f"VAULT_PASSWORD_HASH={cfg.get('vault_password_hash','')}",
             "SOVEREIGN_TOKEN=YAHUAH-3565",
         ]
         with open(env_path, 'w') as f:
             f.write('\n'.join(lines))
 
+    def _download_kokoro(self):
+        """Download Kokoro TTS model + voices bank in background if selected.
+        Both files are required by kokoro-onnx — model alone is not enough."""
+        kokoro_dir = os.path.join(os.path.dirname(__file__), '..', 'kokoro', 'models')
+        os.makedirs(kokoro_dir, exist_ok=True)
+        model_path  = os.path.join(kokoro_dir, 'kokoro-v1.0.onnx')
+        voices_path = os.path.join(kokoro_dir, 'voices-v1.0.bin')
+        try:
+            import urllib.request as ur
+            if not os.path.exists(model_path):
+                ur.urlretrieve(
+                    'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v1.0.onnx',
+                    model_path
+                )
+            if not os.path.exists(voices_path):
+                ur.urlretrieve(
+                    'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices-v1.0.bin',
+                    voices_path
+                )
+        except Exception as e:
+            print(f'[kokoro] download failed: {e} — falling back to ElevenLabs if key present')
 
-def _download_kokoro(self):
-    """Download Kokoro TTS model in background if selected."""
-    kokoro_dir = os.path.join(os.path.dirname(__file__), '..', 'kokoro')
-    os.makedirs(kokoro_dir, exist_ok=True)
-    model_path = os.path.join(kokoro_dir, 'kokoro-v1.0.onnx')
-    if os.path.exists(model_path):
-        return  # already downloaded
-    try:
-        import urllib.request as ur
-        url = 'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v1.0.onnx'
-        ur.urlretrieve(url, model_path)
-    except Exception as e:
-        print(f'[kokoro] download failed: {e}')
+    def _compose_cmd(self):
+        """Modern Docker ships the 'docker compose' plugin; older installs
+        ship the standalone 'docker-compose' binary. Support both."""
+        try:
+            r = subprocess.run(['docker', 'compose', 'version'], capture_output=True, timeout=5)
+            if r.returncode == 0:
+                return ['docker', 'compose']
+        except Exception:
+            pass
+        if shutil.which('docker-compose'):
+            return ['docker-compose']
+        return ['docker', 'compose']  # let it fail loudly with a real error if truly missing
+
     def _launch(self):
         root = os.path.join(os.path.dirname(__file__), '..')
-        subprocess.run(['docker-compose', 'up', '-d'], cwd=root, capture_output=True)
+        cmd = self._compose_cmd() + ['up', '-d', '--build']
+        subprocess.run(cmd, cwd=root, capture_output=True)
 
     def _json(self, data):
         body = json.dumps(data).encode()

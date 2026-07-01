@@ -1,7 +1,8 @@
 /**
  * Sovereign Agent Base — End-User Stack
- * OpenAI-powered with Brave + Tavily search tool calling.
- * No ADAMA Brain, No AIRA. Clean sellable stack.
+ * Multi-provider inference (OpenAI / NVIDIA NIM / Ollama) + web search tool calling
+ * + optional voice replies (Kokoro local TTS or ElevenLabs cloud TTS).
+ * No ADAMA Brain, No AIRA, no proprietary graph. Clean sellable stack.
  * 3565
  */
 import express from "express";
@@ -14,6 +15,7 @@ export interface AgentConfig {
   role: string;
   port: number;
   systemPrompt: string;
+  defaultVoice?: string; // Kokoro voice id, e.g. "af_heart" — optional per-agent override
 }
 
 const TOOLS = [
@@ -35,8 +37,8 @@ const TOOLS = [
 ];
 
 async function webSearch(query: string, provider = "brave"): Promise<string> {
-  const BRAVE_KEY   = process.env.BRAVE_API_KEY || "";
-  const TAVILY_KEY  = process.env.TAVILY_API_KEY || "";
+  const BRAVE_KEY  = process.env.BRAVE_API_KEY || "";
+  const TAVILY_KEY = process.env.TAVILY_API_KEY || "";
 
   if (provider === "tavily" && TAVILY_KEY) {
     const r = await fetch("https://api.tavily.com/search", {
@@ -58,14 +60,102 @@ async function webSearch(query: string, provider = "brave"): Promise<string> {
   return "Search unavailable — no API key configured.";
 }
 
+// Strips common LLM artifacts (stray markdown fences, repeated whitespace,
+// leaked role tags) before a reply is shown or spoken. Cheap, always run it.
+function cleanReply(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/```[a-z]*\n?/gi, "")
+    .replace(/^(assistant|system)\s*:\s*/i, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// ── Provider-agnostic LLM call ────────────────────────────────────────────────
+// All three providers speak the OpenAI chat-completions wire format, so one
+// function handles all of them — only base URL, auth header, and model differ.
+interface ProviderConfig { baseUrl: string; apiKey: string; model: string; authHeader: string; }
+
+function resolveProvider(): ProviderConfig {
+  const provider = (process.env.INFERENCE_PROVIDER || "openai").toLowerCase();
+
+  if (provider === "nvidia_nim" || provider === "nim") {
+    return {
+      baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
+      apiKey: process.env.NVIDIA_NIM_API_KEY || "",
+      model: process.env.NVIDIA_NIM_MODEL || "meta/llama-3.1-70b-instruct",
+      authHeader: `Bearer ${process.env.NVIDIA_NIM_API_KEY || ""}`,
+    };
+  }
+  if (provider === "ollama") {
+    const host = process.env.OLLAMA_HOST || "http://host.docker.internal:11434";
+    return {
+      baseUrl: `${host.replace(/\/$/, "")}/v1/chat/completions`,
+      apiKey: "",
+      model: process.env.OLLAMA_MODEL || "llama3.1:8b",
+      authHeader: "", // Ollama's OpenAI-compat endpoint doesn't require auth
+    };
+  }
+  // default: openai
+  return {
+    baseUrl: "https://api.openai.com/v1/chat/completions",
+    apiKey: process.env.OPENAI_API_KEY || "",
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    authHeader: `Bearer ${process.env.OPENAI_API_KEY || ""}`,
+  };
+}
+
+async function callLLM(messages: any[], tools?: any[]): Promise<any> {
+  const p = resolveProvider();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (p.authHeader) headers["Authorization"] = p.authHeader;
+
+  const payload: any = { model: p.model, messages, max_tokens: 1024, temperature: 0.75 };
+  if (tools) { payload.tools = tools; payload.tool_choice = "auto"; }
+
+  const res = await fetch(p.baseUrl, { method: "POST", headers, body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    throw new Error(`${p.model} provider error (${res.status}): ${errBody.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+// ── Voice — Kokoro (local, free) or ElevenLabs (cloud, paid key) ─────────────
+async function synthesizeSpeech(text: string, voice?: string): Promise<{ buffer: Buffer; mime: string } | null> {
+  const ttsProvider = (process.env.TTS_PROVIDER || "elevenlabs").toLowerCase();
+
+  if (ttsProvider === "kokoro") {
+    const host = process.env.KOKORO_HOST || "http://kokoro:7960";
+    const r = await fetch(`${host.replace(/\/$/, "")}/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice: voice || "af_heart", speed: 1.0 })
+    });
+    if (!r.ok) throw new Error(`Kokoro TTS error (${r.status})`);
+    const arr = await r.arrayBuffer();
+    return { buffer: Buffer.from(arr), mime: "audio/wav" };
+  }
+
+  const key = process.env.ELEVENLABS_API_KEY || "";
+  if (!key) return null; // no TTS configured — caller should treat as "voice unavailable"
+  const voiceId = voice || "21m00Tcm4TlvDq8ikWAM"; // "Rachel" default public voice id
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: "POST",
+    headers: { "xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg" },
+    body: JSON.stringify({ text, model_id: "eleven_turbo_v2_5" })
+  });
+  if (!r.ok) throw new Error(`ElevenLabs TTS error (${r.status})`);
+  const arr = await r.arrayBuffer();
+  return { buffer: Buffer.from(arr), mime: "audio/mpeg" };
+}
+
 export function createAgent(config: AgentConfig) {
   const app = express();
   app.use(cors());
   app.use(express.json());
 
-  const TOKEN      = process.env.SOVEREIGN_TOKEN || "YAHUAH-3565";
-  const OPENAI_KEY = process.env.OPENAI_API_KEY  || "";
-  const MODEL      = "gpt-4o-mini";
+  const TOKEN = process.env.SOVEREIGN_TOKEN || "YAHUAH-3565";
 
   function auth(req: express.Request, res: express.Response, next: express.NextFunction) {
     const header = req.headers.authorization || "";
@@ -81,12 +171,7 @@ export function createAgent(config: AgentConfig) {
     ];
 
     // First call — with tools
-    const res1 = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, tool_choice: "auto", max_tokens: 1024, temperature: 0.75 })
-    });
-    const d1 = await res1.json() as any;
+    const d1 = await callLLM(messages, TOOLS);
     const choice = d1.choices?.[0];
 
     // If tool call requested, execute it and get final reply
@@ -98,20 +183,25 @@ export function createAgent(config: AgentConfig) {
       messages.push(choice.message);
       messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
 
-      const res2 = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, messages, max_tokens: 1024, temperature: 0.75 })
-      });
-      const d2 = await res2.json() as any;
-      return d2.choices?.[0]?.message?.content || "(no reply)";
+      const d2 = await callLLM(messages);
+      return cleanReply(d2.choices?.[0]?.message?.content || "(no reply)");
     }
 
-    return choice?.message?.content || "(no reply)";
+    return cleanReply(choice?.message?.content || "(no reply)");
   }
 
   app.get("/health", (_req, res) => {
-    res.json({ status: "ok", agent: config.name, role: config.role, port: config.port, tools: ["web_search"] });
+    const provider = (process.env.INFERENCE_PROVIDER || "openai").toLowerCase();
+    const tts      = (process.env.TTS_PROVIDER || "elevenlabs").toLowerCase();
+    res.json({
+      status: "ok",
+      agent: config.name,
+      role: config.role,
+      port: config.port,
+      tools: ["web_search"],
+      inference_provider: provider,
+      tts_provider: tts,
+    });
   });
 
   app.post("/api/chat", auth, async (req, res) => {
@@ -125,8 +215,25 @@ export function createAgent(config: AgentConfig) {
     }
   });
 
+  // Text-to-speech for a given reply. Returns raw audio bytes (wav or mp3
+  // depending on provider). Callers should treat a 501 as "voice not configured"
+  // rather than an error — that's an expected, valid state.
+  app.post("/api/speak", auth, async (req, res) => {
+    const { text, voice } = req.body;
+    if (!text) { res.status(400).json({ error: "text required" }); return; }
+    try {
+      const audio = await synthesizeSpeech(text, voice || config.defaultVoice);
+      if (!audio) { res.status(501).json({ error: "No TTS provider configured (set TTS_PROVIDER=kokoro or add an ElevenLabs key)" }); return; }
+      res.set("Content-Type", audio.mime);
+      res.send(audio.buffer);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.listen(config.port, "0.0.0.0", () => {
-    console.log(`[${config.name}] online @ port ${config.port} | tools: web_search | 3565`);
+    const provider = (process.env.INFERENCE_PROVIDER || "openai").toLowerCase();
+    console.log(`[${config.name}] online @ port ${config.port} | provider: ${provider} | tools: web_search | 3565`);
   });
 
   return app;

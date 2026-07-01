@@ -1,4 +1,4 @@
-import { createAgent } from "../../core/agent_base.js";
+import { createAgent } from "./core/agent_base.js";
 import dotenv from "dotenv";
 dotenv.config({ path: "../../.env" });
 

@@ -26,8 +26,11 @@
   .status-dot.online { background: #4ade80; }
   .status-dot.offline { background: #f87171; }
   .chat-area { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
-  .chat-header { display: flex; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .chat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .chat-header h2 { font-size: 0.9rem; letter-spacing: 0.1em; }
+  .voice-toggle { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; color: #666; letter-spacing: 0.05em; cursor: pointer; user-select: none; }
+  .voice-toggle input { accent-color: var(--gold); cursor: pointer; }
+  .voice-toggle.speaking { color: var(--gold); }
   .messages { height: 360px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
   .message { padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; line-height: 1.5; max-width: 85%; }
   .message.user { background: #1a1400; border: 1px solid #2a2000; align-self: flex-end; color: var(--gold); }
@@ -60,13 +63,16 @@
   <a class="nav-link active" href="index.html">AGENTS</a>
   <a class="nav-link" href="analytics.html">ANALYTICS</a>
   <a class="nav-link" href="http://localhost:7950" target="_blank">3D VAULT</a>
-  <a class="nav-link" href="http://localhost:7007/api/graph" target="_blank">BRAIN GRAPH</a>
 </nav>
 <main>
   <div class="agents-grid" id="agents_grid"></div>
   <div class="chat-area">
     <div class="chat-header">
       <h2 id="chat_title">SELECT AN AGENT TO CHAT</h2>
+      <label class="voice-toggle" id="voice_toggle_label" title="Speak agent replies out loud">
+        <input type="checkbox" id="voice_toggle">
+        <span id="voice_toggle_text">🔊 SPEAK REPLIES</span>
+      </label>
       <span id="chat_role" style="font-size:0.7rem;color:#555;letter-spacing:0.08em"></span>
     </div>
     <div class="messages" id="messages">
@@ -78,6 +84,7 @@
     </div>
   </div>
 </main>
+<audio id="tts_player" style="display:none"></audio>
 
 <script>
 const AGENTS = [
@@ -95,6 +102,7 @@ const TOKEN = "YAHUAH-3565";
 let activeAgent = null;
 let history = [];
 const statuses = {};
+let voiceUnavailableWarned = false; // only warn once per session, not once per message
 
 async function checkHealth(agent) {
   try {
@@ -147,6 +155,38 @@ function addMsg(from, text, type) {
   box.scrollTop = box.scrollHeight;
 }
 
+// Fetches TTS audio for a reply and plays it. Silently no-ops if no TTS
+// provider is configured (501) — that's a valid, expected state, not an error.
+async function speakReply(agentPort, text) {
+  const toggle = document.getElementById("voice_toggle");
+  const label  = document.getElementById("voice_toggle_label");
+  try {
+    const res = await fetch(`http://localhost:${agentPort}/api/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` },
+      body: JSON.stringify({ text })
+    });
+    if (res.status === 501) {
+      if (!voiceUnavailableWarned) {
+        voiceUnavailableWarned = true;
+        console.warn("[voice] no TTS provider configured — set TTS_PROVIDER=kokoro or add an ElevenLabs key in Setup.");
+        toggle.checked = false;
+      }
+      return;
+    }
+    if (!res.ok) throw new Error(`speak failed (${res.status})`);
+    const blob = await res.blob();
+    const player = document.getElementById("tts_player");
+    player.src = URL.createObjectURL(blob);
+    label.classList.add("speaking");
+    player.onended = () => label.classList.remove("speaking");
+    await player.play();
+  } catch (e) {
+    console.warn("[voice] playback error:", e.message);
+    label.classList.remove("speaking");
+  }
+}
+
 async function send() {
   if (!activeAgent) return;
   const input = document.getElementById("msg_input");
@@ -162,12 +202,16 @@ async function send() {
     const res = await fetch(`http://localhost:${activeAgent.port}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` },
-      body: JSON.stringify({ message: msg, history: history.slice(-6), voice: true })
+      body: JSON.stringify({ message: msg, history: history.slice(-6) })
     });
     const data = await res.json();
     const reply = data.reply || "(no reply)";
     addMsg(activeAgent.name, reply, "agent");
     history.push({ role: "assistant", content: reply });
+
+    if (document.getElementById("voice_toggle").checked) {
+      speakReply(activeAgent.port, reply);
+    }
   } catch(e) {
     addMsg(activeAgent.name, `Error: ${e.message}`, "agent");
   }

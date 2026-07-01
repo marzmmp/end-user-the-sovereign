@@ -1,4 +1,4 @@
-import { createAgent } from "../../core/agent_base.js";
+import { createAgent } from "./core/agent_base.js";
 import express from "express";
 import fs from "fs";
 import path from "path";

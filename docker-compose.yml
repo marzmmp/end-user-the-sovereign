@@ -1,6 +1,5 @@
-version: '3.9'
 # Step 1: bash scripts/build.sh  (builds all 8 agent images)
-# Step 2: docker-compose up -d   (starts everything)
+# Step 2: bash scripts/restart_all.sh (or: docker compose up -d)
 
 services:
   setup:
@@ -26,11 +25,25 @@ services:
       - ./vault:/usr/share/nginx/html:ro
     restart: unless-stopped
 
+  # Local, free, offline text-to-speech. Only used when TTS_PROVIDER=kokoro
+  # (set by the setup wizard). Harmless to leave running otherwise — it just
+  # idles until an agent's /api/speak route calls it.
+  kokoro:
+    build:
+      context: ./kokoro
+      dockerfile: Dockerfile
+    image: sovereign-kokoro
+    ports: ["7960:7960"]
+    volumes:
+      - ./kokoro/models:/app/models:ro
+    restart: unless-stopped
+
   yahriel:
     image: sovereign-yahriel
     ports: ["7001:7001"]
     env_file: .env
     environment: [PORT=7001]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   azari:
@@ -38,6 +51,7 @@ services:
     ports: ["7002:7002"]
     env_file: .env
     environment: [PORT=7002]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   yahli-el:
@@ -45,6 +59,7 @@ services:
     ports: ["7003:7003"]
     env_file: .env
     environment: [PORT=7003]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   yahziel:
@@ -52,6 +67,7 @@ services:
     ports: ["7004:7004"]
     env_file: .env
     environment: [PORT=7004]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   yahbana:
@@ -59,6 +75,7 @@ services:
     ports: ["7005:7005"]
     env_file: .env
     environment: [PORT=7005]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   yahseed:
@@ -66,6 +83,7 @@ services:
     ports: ["7006:7006"]
     env_file: .env
     environment: [PORT=7006]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   yahsei:
@@ -73,6 +91,7 @@ services:
     ports: ["7007:7007"]
     env_file: .env
     environment: [PORT=7007]
+    depends_on: [kokoro]
     restart: unless-stopped
 
   yahdin:
@@ -80,4 +99,5 @@ services:
     ports: ["7008:7008"]
     env_file: .env
     environment: [PORT=7008]
+    depends_on: [kokoro]
     restart: unless-stopped
